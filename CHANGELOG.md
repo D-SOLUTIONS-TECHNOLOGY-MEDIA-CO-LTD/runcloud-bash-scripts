@@ -2,6 +2,18 @@
 
 All notable changes to `runcloud-bash-scripts` will be documented in this file.
 
+## [1.4.2] — 2026-07-23
+
+### Fixed
+
+- **wp-malware-scan.sh**: add Family 3b — webshell drop detection at wp-content/ and
+  wp-content/themes/ roots. Scanner previously only checked uploads/ for eval-cookie
+  webshells; attackers on the FOPO/eval-obfuscator family also drop identical payloads at
+  themes/wp-configs.php (same md5 as their uploads/wp-configs.php copy). Filters out
+  standard WP theme filenames (functions.php, index.php, header.php…) and only flags
+  suspicious content matches. Discovered while cleaning galle/tahamin (D-Solutions client).
+
+
 ## [1.4.1] — 2026-07-23
 
 ### Fixed
