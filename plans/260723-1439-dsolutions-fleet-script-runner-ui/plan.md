@@ -41,8 +41,8 @@ Adopt the mockup's React layout (4 tabs: servers w/ expandable per-site rows, al
 | 03 | [SSH exec + live output streaming (SSE)](phase-03-ssh-exec-and-live-streaming.md) | **Done** |
 | 04 | [Multi-server parallel runs + logs](phase-04-multi-server-runs-and-logs.md) | **Done** |
 | 05 | [Safety UX + run history](phase-05-safety-ux-and-history.md) | **Done**|
-| 10 | [Alerting (Zalo OA on thresholds)](phase-10-alerting.md) | Optional |
-| 06 | [Auth + host behind Cloudflare Access / Tailscale](phase-06-deferred-auth-and-deploy.md) | In scope (multi-user) |
+| 10 | [Alerting (Zalo OA on thresholds)](phase-10-alerting.md) | **Done**|
+| 06 | [Auth + host behind Cloudflare Access / Tailscale](phase-06-deferred-auth-and-deploy.md) | **Done**|
 
 Suggested order: **08 → 09** (finish monitoring parity with push + nicer UI), then **02–05** (script runner), then **06** (host for team) and **10** (alerts).
 
