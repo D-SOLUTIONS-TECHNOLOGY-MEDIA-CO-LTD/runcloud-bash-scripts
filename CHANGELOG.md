@@ -2,6 +2,20 @@
 
 All notable changes to `runcloud-bash-scripts` will be documented in this file.
 
+## [1.4.0] — 2026-07-23
+
+### Added
+
+- **wp-malware-scan.sh** — Read-only WordPress backdoor/webshell scanner covering three infection classes by shape (not a fixed IOC list):
+  - Fake-plugin eval loaders (obfuscated `.txt`, odd plugin dirs, oversized steg README)
+  - XOR backdoors (`hex2bin()`^key driven via `$_COOKIE`)
+  - eval-cookie webshells dropped in `uploads/`
+  - Optional `wp core verify-checksums` integrity pass (`--verify-core`)
+  - Optional `--ioc-file=` for private, non-committed custom signatures
+  - Scans all sites, `--site=`, or `--path=`; exit 1 on any finding
+- **wp-malware-quarantine.sh** — Non-destructive evidence backup before cleanup: tars suspect paths, dumps DB (wp-cli → mysqldump fallback), snapshots `active_plugins`, stores under `/root/malware-quarantine/`, installs 30-day purge cron
+- **wp-decode-payload.php** — Static (print-only, never `eval`) decoder for fake-image steg payloads used by the eval-loader family
+
 ## [1.3.0] — 2026-07-16
 
 ### Added

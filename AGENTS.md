@@ -1,47 +1,67 @@
-# runcloud-bash-scripts
+# AGENTS.md
 
-Server management scripts for RunCloud-managed WordPress hosting fleet.
+This file provides guidance to coding agents when working with code in this repository.
 
-## Architecture
+`CLAUDE.md` mirrors this file — keep the two in sync when editing either.
 
-- **20 production servers** across SG, VN, JP regions (see `~/.rc/config.yaml`)
-- **Multi-user**: apps live under `/home/*/webapps/`, not just `/home/runcloud/`
-- **SSH access**: all servers via root, ports vary (22 or 2018, defined in config)
-- **Git-tracked**: repo cloned at `/root/runcloud-bash-scripts/` on every server
-- **Dashboard integration**: scripts registered as actions in `runcloud-go/internal/web/server.go` `appScripts` map
+## What this is
 
-## Key patterns
+**D-Solutions** fleet-ops scripts for operating **20 RunCloud-managed WordPress/Laravel servers** (SG, VN, JP regions). The core fleet scripts originate from [`codetot-web/runcloud-bash-scripts`](https://github.com/codetot-web/runcloud-bash-scripts) (by @khoipro, used with attribution); the `wp-malware-*` tooling is original D-Solutions work. Replace example hosts (`sgX.example.com`) and paths (`/Users/you/...`) with the real fleet values. Scripts are authored/tested on macOS but run as `root` on Ubuntu 20/22/24. Each server has this repo cloned at `/root/runcloud-bash-scripts/`. A companion Go dashboard (`runcloud-go`, separate repo at `/Users/you/Projects/runcloud-go`, deployed as the `rc-dashboard` Docker container on port 8090) exposes many scripts as one-click actions.
 
-### Script conventions
-- All scripts use `set -euo pipefail`
-- Color helpers: `info()`, `success()`, `warn()`, `error()`
-- Site resolution: accept `--site=NAME` (searches `/home/*/webapps/`) or `--path=PATH` (full path)
-- Site owner detection: `stat -c '%U'` (Linux) with `stat -f '%Su'` (BSD) fallback
-- wp-cli: search multiple paths (`/usr/local/bin/wp`, `/usr/bin/wp`, RunCloud agent)
-- Run wp-cli as site owner: `sudo -u $SITE_OWNER $WP_CLI --path=$SITE_PATH`
+## Fleet registry (source of truth)
 
-### Deployment
+Server hostnames and SSH ports live in a local SQLite DB, **not** in this repo:
 ```bash
-# Deploy to all servers (parallel):
-sqlite3 ~/.rc/rc.db "SELECT hostname, ssh_port FROM servers;" | while IFS='|' read -r host port; do
-    (ssh -p "$port" -o ConnectTimeout=5 "root@$host" \
-      "cd /root/runcloud-bash-scripts && git checkout -- . 2>/dev/null; git pull --ff-only && chmod +x *.sh") &
-done; wait
+sqlite3 ~/.rc/rc.db "SELECT hostname, ssh_port FROM servers ORDER BY hostname;"
 ```
+SSH ports vary per server (22 or 2018). Always look up the port from `rc.db` — never assume. `~/.rc/config.yaml` is the human-readable fleet config.
 
-### Dashboard registration
-In `runcloud-go/internal/web/server.go`, use `{name}` and `{path}` placeholders (NOT `%s`):
+## Slash commands (encode the real workflows)
+
+- `/deploy` — push both repos, `git pull --ff-only` scripts to all 20 servers in parallel, then rebuild + restart the `rc-dashboard` Docker container.
+- `/fleet-status` — SSH to every server for its current git commit, check dashboard container + API health.
+- `/test-script <script> <server> <args>` — `bash -n`, scp to one server, run, clean up. Use this before any fleet deploy.
+
+## Script conventions
+
+Every script follows the same anatomy (see `wp-vuln-check.sh` as the reference):
+- `#!/bin/bash` + `set -euo pipefail`
+- A header comment block (usage/options) that `--help`/`-h` prints back via `awk`
+- Color helpers: `info()`, `success()`, `warn()`, `error()` (error → stderr)
+- Arg parsing: `--site=NAME` (searches `/home/*/webapps/`) **or** `--path=PATH` (full path); most action scripts also take `--dry-run`
+- Site owner detection: `stat -c '%U'` (Linux) with `stat -f '%Su'` (BSD/macOS) fallback — scripts must work on both platforms
+- wp-cli: search candidate paths (`/usr/local/bin/wp`, `/usr/bin/wp`, RunCloud agent) — PATH is unreliable under cron
+- Run wp-cli **as the site owner**: `sudo -u "$SITE_OWNER" "$WP_CLI" --path="$SITE_PATH" ...`
+
+Migration scripts (`wp-migration.sh`, `wp-local-to-production.sh`, `laravel-migration.sh`) are the exception: run from the **source** (a server or the Mac) and SSH into the destination; support `--setup-ssh` to seed keys first.
+
+## Testing & deploy flow
+
+1. `bash -n script.sh` — syntax check locally.
+2. Test on one server (via `/test-script` or manually):
+   ```bash
+   scp -P 2018 script.sh root@sg9.example.com:/root/test.sh
+   ssh -p 2018 root@sg9.example.com "bash /root/test.sh --site=vinhhoan"
+   ```
+3. Commit, bump `VERSION` + `CHANGELOG.md` for notable changes, then `/deploy`.
+
+On servers, `git checkout -- .` runs before `git pull` because `chmod +x *.sh` creates filemode diffs that would otherwise block a fast-forward pull.
+
+## Dashboard registration
+
+To expose a script in the dashboard, add it to the `appScripts` map in `runcloud-go`'s `internal/web/server.go`. Use `{name}` / `{path}` placeholders, **not** `%s` — `fmt.Sprintf` would eat the `%U` in `stat -c %U`:
 ```go
 "vuln-check": "bash /root/runcloud-bash-scripts/wp-vuln-check.sh --path={path} --include-core",
 ```
 
-## Testing
-- Syntax check: `bash -n script.sh`
-- Test on a single server: `scp -P 2018 script.sh root@sg9.codetot.org:/root/test.sh && ssh -p 2018 root@sg9.codetot.org "bash /root/test.sh --site=vinhhoan"`
-- Always test before merge+deploy
-
 ## Common pitfalls
-- Never hardcode `/home/runcloud/` — use `/home/*/webapps/` glob or accept `--path=`
-- `fmt.Sprintf` in Go eats `%U` from `stat -c %U` — use `{name}`/`{path}` placeholders only
-- `git checkout -- .` before `git pull` on servers (filemode changes from `chmod +x` block pulls)
-- wp-cli may not be in PATH during cron — always search candidate paths
+
+- Never hardcode `/home/runcloud/` — apps are multi-user under `/home/*/webapps/`. Glob it or accept `--path=`.
+- wp-cli not in PATH during cron — always search candidate paths.
+- Frozen sites: `wp-freeze.sh` locks files read-only + drops a `code-freeze.php` mu-plugin; scripts that mutate sites (`wp-git-cleanup.sh`, updates) skip frozen sites.
+- Reference PHP binary matters: `wp-health-check.sh` runs wp-cli through the app's **FPM/LSPHP** binary, not system CLI PHP, to avoid false "mysqli missing" errors.
+
+## Non-script assets
+
+- `sop-templates/` — standalone HTML runbooks + Typesense helper scripts (not part of the fleet deploy).
+- `.gstack/` — gitignored local scratch.

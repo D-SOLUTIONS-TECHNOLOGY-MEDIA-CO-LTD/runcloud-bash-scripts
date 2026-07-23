@@ -1,6 +1,8 @@
-# RunCloud - Bash scripts
+# RunCloud Bash Scripts — D-Solutions Fleet Ops
 
-Author: [@khoipro](https://github.com/khoipro), @copilot
+Server management scripts for D-Solutions' RunCloud-managed WordPress/Laravel hosting fleet.
+
+> **Credits & attribution:** The core fleet scripts were originally authored by [@khoipro](https://github.com/khoipro) & @copilot in [`codetot-web/runcloud-bash-scripts`](https://github.com/codetot-web/runcloud-bash-scripts) and are used here with attribution. This repository is maintained and extended by **D-Solutions**. The malware-hunting tooling — `wp-malware-scan.sh`, `wp-malware-quarantine.sh`, `wp-decode-payload.php` — is original D-Solutions work.
 
 ## Features
 - [x] Install ioncube for all PHP versions
@@ -21,6 +23,7 @@ Author: [@khoipro](https://github.com/khoipro), @copilot
 - [x] WP vulnerability check (CVE scanning via WPVulnerability.net API)
 - [x] WP health check (FPM PHP binary probe — DB, plugin/theme fatals)
 - [x] WP ownership audit (detect root-owned files + ACL deny entries)
+- [x] WP malware scan (backdoor/webshell detection across 3 infection classes)
 
 ## Requirements
 - OpenLitespeed/Nginx
@@ -32,7 +35,7 @@ Login as root and clone the repo:
 
 ```bash
 cd /root
-git clone https://github.com/codetot-web/runcloud-bash-scripts.git
+git clone https://github.com/D-SOLUTIONS-TECHNOLOGY-MEDIA-CO-LTD/runcloud-bash-scripts.git
 cd runcloud-bash-scripts
 chmod +x *.sh
 ```
@@ -90,10 +93,10 @@ Full WordPress migration between RunCloud servers. Handles database, config file
 
 ```bash
 # 1. Setup SSH keys to destination (one-time)
-./wp-migration.sh runcloud@sg3.codetot.org --setup-ssh
+./wp-migration.sh runcloud@sg3.example.com --setup-ssh
 
 # 2. Run migration with staging URL
-./wp-migration.sh runcloud@sg3.codetot.org myapp --staging-url=http://myapp.staging.temp-site.link
+./wp-migration.sh runcloud@sg3.example.com myapp --staging-url=http://myapp.staging.temp-site.link
 ```
 
 ### wp-local-to-production.sh
@@ -116,13 +119,13 @@ Sync a local WordPress site on this Mac to a RunCloud production webapp.
 **Examples:**
 
 ```bash
-./wp-local-to-production.sh runcloud@sg4.codetot.org "/Users/khoipro/Local Sites/cdev/app/public" \
+./wp-local-to-production.sh runcloud@sg4.example.com "/Users/you/Local Sites/cdev/app/public" \
   --production-url=http://cdev.example.temp-site.link
 
-./wp-local-to-production.sh runcloud@sg4.codetot.org "/Users/khoipro/Local Sites/cdev/app/public" cdev \
+./wp-local-to-production.sh runcloud@sg4.example.com "/Users/you/Local Sites/cdev/app/public" cdev \
   --production-url=http://cdev.example.temp-site.link
 
-./wp-local-to-production.sh runcloud@sg4.codetot.org "/Users/khoipro/Local Sites/cdev/app/public" cdev \
+./wp-local-to-production.sh runcloud@sg4.example.com "/Users/you/Local Sites/cdev/app/public" cdev \
   --dry-run --production-url=http://cdev.example.temp-site.link
 ```
 
@@ -163,17 +166,17 @@ Full Laravel migration between RunCloud servers. Mirrors `wp-migration.sh` but f
 
 ```bash
 # Setup SSH (one-time)
-./laravel-migration.sh runcloud@sg4.codetot.org --setup-ssh
+./laravel-migration.sh runcloud@sg4.example.com --setup-ssh
 
 # Migrate with staging URL override
-./laravel-migration.sh runcloud@sg4.codetot.org myapp \
+./laravel-migration.sh runcloud@sg4.example.com myapp \
   --staging-url=http://myapp.staging.temp-site.link
 
 # Skip composer (e.g. vendor was already rsynced)
-./laravel-migration.sh runcloud@sg4.codetot.org myapp --skip-composer
+./laravel-migration.sh runcloud@sg4.example.com myapp --skip-composer
 
 # Skip migrations (don't run `php artisan migrate`)
-./laravel-migration.sh runcloud@sg4.codetot.org myapp --skip-migrate
+./laravel-migration.sh runcloud@sg4.example.com myapp --skip-migrate
 ```
 
 **Flags:**
@@ -586,6 +589,64 @@ Scans WordPress webapps for file ownership issues that silently break sites:
 **JSON output:**
 ```bash
 ./wp-ownership-audit.sh --format=json
+```
+
+### wp-malware-scan.sh
+
+Read-only scanner for WordPress backdoors and webshells. Detects by structure/behaviour rather than a fixed IOC list, so it keeps catching new variants across three infection classes:
+
+1. **Fake-plugin eval loaders** — random-named plugin dir with a tiny `.php` that `include()`s an obfuscated `.txt` and `eval()`s it; payload often steganographic in an oversized `README.txt`.
+2. **XOR backdoors** — "legit sounding" fake plugin using `hex2bin()` ^ key (no `eval`/`base64`), driven via `$_COOKIE`.
+3. **eval-cookie webshells** — random `.php` dropped in `uploads/` (or injected into core) taking `$_COOKIE`/`$_POST` then `eval`/`base64_decode`.
+
+Never deletes or edits anything — it reports hits for manual triage and exits `1` when anything is found.
+
+**Scan every site:**
+```bash
+./wp-malware-scan.sh
+```
+
+**Scan one site + verify WP core integrity:**
+```bash
+./wp-malware-scan.sh --site=myapp --verify-core
+```
+
+**With private custom signatures (one `grep -E` pattern per line, file kept out of the repo):**
+```bash
+./wp-malware-scan.sh --ioc-file=/root/my-iocs.txt
+```
+
+**List target sites without scanning:**
+```bash
+./wp-malware-scan.sh --dry-run
+```
+
+**Flags:** `--site=NAME`, `--path=PATH`, `--verify-core`, `--ioc-file=FILE`, `--dry-run`
+
+### wp-malware-quarantine.sh
+
+Back up malware evidence **before** removing anything (non-destructive). Tars each suspect path, dumps the DB (wp-cli, falling back to `mysqldump` from `wp-config` creds), and snapshots `active_plugins` for rollback — all under `/root/malware-quarantine/<timestamp>/` (never `/tmp`, which systemd wipes mid-run). Installs a cron to purge quarantine after 30 days.
+
+```bash
+./wp-malware-quarantine.sh --site=myapp \
+  --paths="wp-content/plugins/abcdefg wp-content/uploads/2023/05/sjriagkw.php"
+```
+
+**Flags:** `--site=NAME`, `--path=PATH`, `--paths="rel1 rel2"` (required), `--retention=N` (days, default 30), `--dry-run`
+
+### wp-decode-payload.php
+
+Statically decode a fake-image (`.png`/`.gif`) steg payload used by the eval-loader family. **Prints only — never `eval`s or executes anything.** Drops 3 fake magic bytes, applies the loader's `strtr()` substitution cipher, then `base64_decode`.
+
+```bash
+php wp-decode-payload.php suspect.png [key1] [key2]
+```
+
+The two keys are the loader's `strtr()` tables — extract them from the plugin's `.txt` loader (the two functions each returning a 64-char string) and pass them in; the built-in defaults match one variant only and differ across samples.
+
+**Extract IOCs from the decoded output:**
+```bash
+php wp-decode-payload.php suspect.png | grep -oE 'https?://[a-zA-Z0-9./_-]+'
 ```
 
 ### change-ssh-port.sh
