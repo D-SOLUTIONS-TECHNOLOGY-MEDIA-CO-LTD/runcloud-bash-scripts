@@ -36,7 +36,7 @@ Adopt the mockup's React layout (4 tabs: servers w/ expandable per-site rows, al
 | 01 | [Scaffold + fleet registry read](phase-01-scaffold-and-fleet-registry.md) | **Done** |
 | 07 | [Inventory dashboard (pull)](phase-07-inventory-monitoring-dashboard.md) | **Done (MVP)** |
 | 08 | [Webhook receiver + HMAC + history store](phase-08-webhook-receiver-and-history.md) | **Done** |
-| 09 | [UI: adopt mockup layout (drill-down, sites, setup)](phase-09-ui-adopt-mockup-layout.md) | Not started |
+| 09 | [UI: adopt mockup layout (drill-down, sites, setup)](phase-09-ui-adopt-mockup-layout.md) | **Done** |
 | 02 | [Script catalog manifest + run form](phase-02-script-catalog-and-run-form.md) | Not started |
 | 03 | [SSH exec + live output streaming (SSE)](phase-03-ssh-exec-and-live-streaming.md) | Not started |
 | 04 | [Multi-server parallel runs + logs](phase-04-multi-server-runs-and-logs.md) | Not started |
