@@ -6,7 +6,7 @@ This file provides guidance to coding agents when working with code in this repo
 
 ## What this is
 
-**D-Solutions** fleet-ops scripts for operating **20 RunCloud-managed WordPress/Laravel servers** (SG, VN, JP regions). The core fleet scripts originate from [`codetot-web/runcloud-bash-scripts`](https://github.com/codetot-web/runcloud-bash-scripts) (by @khoipro, used with attribution); the `wp-malware-*` tooling is original D-Solutions work. Replace example hosts (`sgX.example.com`) and paths (`/Users/you/...`) with the real fleet values. Scripts are authored/tested on macOS but run as `root` on Ubuntu 20/22/24. Each server has this repo cloned at `/root/runcloud-bash-scripts/`. A companion Go dashboard (`runcloud-go`, separate repo at `/Users/you/Projects/runcloud-go`, deployed as the `rc-dashboard` Docker container on port 8090) exposes many scripts as one-click actions.
+**D-Solutions** fleet-ops scripts for operating **20 RunCloud-managed WordPress/Laravel servers** (SG, VN, JP regions). The core fleet scripts originate from [`codetot-web/runcloud-bash-scripts`](https://github.com/codetot-web/runcloud-bash-scripts) (by @khoipro, used with attribution); the `wp-malware-*` tooling is original D-Solutions work. Replace example hosts (`sgX.example.com`) and paths (`/Users/you/...`) with the real fleet values. Scripts are authored/tested on macOS but run as `root` on Ubuntu 20/22/24. Each server has this repo cloned at `/root/runcloud-bash-scripts/`. (A team web UI to run these scripts is a planned D-Solutions project — not built yet.)
 
 ## Fleet registry (source of truth)
 
@@ -18,8 +18,8 @@ SSH ports vary per server (22 or 2018). Always look up the port from `rc.db` —
 
 ## Slash commands (encode the real workflows)
 
-- `/deploy` — push both repos, `git pull --ff-only` scripts to all 20 servers in parallel, then rebuild + restart the `rc-dashboard` Docker container.
-- `/fleet-status` — SSH to every server for its current git commit, check dashboard container + API health.
+- `/deploy` — `git push`, then `git pull --ff-only` the scripts to all 20 servers in parallel (fleet read from `~/.rc/rc.db`).
+- `/fleet-status` — SSH to every server for its current git commit.
 - `/test-script <script> <server> <args>` — `bash -n`, scp to one server, run, clean up. Use this before any fleet deploy.
 
 ## Script conventions
@@ -46,13 +46,6 @@ Migration scripts (`wp-migration.sh`, `wp-local-to-production.sh`, `laravel-migr
 3. Commit, bump `VERSION` + `CHANGELOG.md` for notable changes, then `/deploy`.
 
 On servers, `git checkout -- .` runs before `git pull` because `chmod +x *.sh` creates filemode diffs that would otherwise block a fast-forward pull.
-
-## Dashboard registration
-
-To expose a script in the dashboard, add it to the `appScripts` map in `runcloud-go`'s `internal/web/server.go`. Use `{name}` / `{path}` placeholders, **not** `%s` — `fmt.Sprintf` would eat the `%U` in `stat -c %U`:
-```go
-"vuln-check": "bash /root/runcloud-bash-scripts/wp-vuln-check.sh --path={path} --include-core",
-```
 
 ## Common pitfalls
 

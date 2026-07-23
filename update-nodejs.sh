@@ -5,7 +5,7 @@
 # ============================================================
 # Usage:
 #   1. Download a script
-#        wget https://github.com/codetot-web/runcloud-bash-scripts/raw/refs/heads/main/update-nodejs.sh
+#        wget https://github.com/D-SOLUTIONS-TECHNOLOGY-MEDIA-CO-LTD/runcloud-bash-scripts/raw/refs/heads/main/update-nodejs.sh
 #   2. Make it executable:
 #        chmod +x update-node.sh
 #   3. Run the script:

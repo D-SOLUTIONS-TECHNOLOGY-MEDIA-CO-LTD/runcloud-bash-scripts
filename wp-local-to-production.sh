@@ -15,13 +15,13 @@
 # - It does not delete remote uploads by default
 #
 # Usage:
-#   ./wp-local-to-production.sh runcloud@sg4.codetot.org "/Users/khoipro/Local Sites/cdev/app/public" \
+#   ./wp-local-to-production.sh runcloud@sg4.example.com "/Users/you/Local Sites/cdev/app/public" \
 #     --production-url=http://cdev.example.temp-site.link
-#   ./wp-local-to-production.sh runcloud@sg4.codetot.org "/Users/khoipro/Local Sites/cdev/app/public" cdev \
+#   ./wp-local-to-production.sh runcloud@sg4.example.com "/Users/you/Local Sites/cdev/app/public" cdev \
 #     --production-url=http://cdev.example.temp-site.link
-#   ./wp-local-to-production.sh runcloud@sg4.codetot.org "/Users/khoipro/Local Sites/cdev/app/public" \
+#   ./wp-local-to-production.sh runcloud@sg4.example.com "/Users/you/Local Sites/cdev/app/public" \
 #     --setup-ssh --production-url=http://cdev.example.temp-site.link
-#   ./wp-local-to-production.sh runcloud@sg4.codetot.org "/Users/khoipro/Local Sites/cdev/app/public" \
+#   ./wp-local-to-production.sh runcloud@sg4.example.com "/Users/you/Local Sites/cdev/app/public" \
 #     --dry-run --production-url=http://cdev.example.temp-site.link
 #
 # Notes:
