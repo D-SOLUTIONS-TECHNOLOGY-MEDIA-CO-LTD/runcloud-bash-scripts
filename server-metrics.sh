@@ -210,6 +210,12 @@ if [ "$QUICK_MODE" = false ] && [ -d /home ]; then
     fi
 fi
 
+# ── Detect the SSH port so the dashboard can reach this host without a registry ─
+SSH_PORT=$(sshd -T 2>/dev/null | awk '$1=="port"{print $2; exit}')
+[ -z "$SSH_PORT" ] && SSH_PORT=$(grep -RhiE '^[[:space:]]*Port[[:space:]]+[0-9]+' \
+    /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null | awk '{print $2}' | tail -1)
+[ -z "$SSH_PORT" ] && SSH_PORT=22
+
 # ── Build JSON payload ───────────────────────────────────────────────────────
 
 json_field() {
@@ -224,7 +230,7 @@ json_field() {
 }
 
 PAYLOAD=$(cat <<EOF
-{$(json_field hostname "$SERVER_HOSTNAME"),$(json_field ip_address "$IP_ADDRESS"),$(json_field cpu_percent "$CPU_PERCENT" number),$(json_field cpu_cores "$CPU_CORES" number),$(json_field load_1m "$LOAD_1M" number),$(json_field load_5m "$LOAD_5M" number),$(json_field load_15m "$LOAD_15M" number),$(json_field ram_total_mb "$RAM_TOTAL_MB" number),$(json_field ram_used_mb "$RAM_USED_MB" number),$(json_field ram_percent "$RAM_PERCENT" number),$(json_field disk_total_mb "$DISK_TOTAL_MB" number),$(json_field disk_used_mb "$DISK_USED_MB" number),$(json_field disk_percent "$DISK_PERCENT" number),$(json_field uptime_seconds "$UPTIME_SECONDS" number),$(json_field reported_at "$REPORTED_AT"),"web_apps":$WEB_APPS_JSON}
+{$(json_field hostname "$SERVER_HOSTNAME"),$(json_field ip_address "$IP_ADDRESS"),$(json_field cpu_percent "$CPU_PERCENT" number),$(json_field cpu_cores "$CPU_CORES" number),$(json_field load_1m "$LOAD_1M" number),$(json_field load_5m "$LOAD_5M" number),$(json_field load_15m "$LOAD_15M" number),$(json_field ram_total_mb "$RAM_TOTAL_MB" number),$(json_field ram_used_mb "$RAM_USED_MB" number),$(json_field ram_percent "$RAM_PERCENT" number),$(json_field disk_total_mb "$DISK_TOTAL_MB" number),$(json_field disk_used_mb "$DISK_USED_MB" number),$(json_field disk_percent "$DISK_PERCENT" number),$(json_field uptime_seconds "$UPTIME_SECONDS" number),$(json_field ssh_port "$SSH_PORT" number),$(json_field reported_at "$REPORTED_AT"),"web_apps":$WEB_APPS_JSON}
 EOF
 )
 

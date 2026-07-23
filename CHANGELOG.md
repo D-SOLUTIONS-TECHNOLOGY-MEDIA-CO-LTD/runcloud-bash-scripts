@@ -2,6 +2,15 @@
 
 All notable changes to `runcloud-bash-scripts` will be documented in this file.
 
+## [1.5.0] — 2026-07-24
+
+### Added
+
+- **server-metrics.sh**: report the host's `ssh_port` in the payload (detected via
+  `sshd -T`, falling back to `sshd_config`/`sshd_config.d`, then 22). Lets the fleet
+  dashboard reach each server on its real SSH port — mixed 22/2018 fleets no longer
+  need a local server registry to run scripts.
+
 ## [1.4.3] — 2026-07-23
 
 ### Fixed
