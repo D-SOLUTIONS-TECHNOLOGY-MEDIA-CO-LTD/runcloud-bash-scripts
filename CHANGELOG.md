@@ -2,6 +2,17 @@
 
 All notable changes to `runcloud-bash-scripts` will be documented in this file.
 
+## [1.4.1] — 2026-07-23
+
+### Fixed
+
+- **wp-malware-scan.sh**: raise oversized-README threshold from 150KB to 500KB, and skip files
+  starting with the WordPress plugin readme header (`=== Plugin Name ===`) at any size —
+  legit large plugins like WP Fusion ship 400KB readme.txt without being malware. The
+  oversized-README rule is a secondary check; the primary signal for fake-plugin loaders
+  is the odd-plugin shape (rule 1b: few files, no readme).
+
+
 ## [1.4.0] — 2026-07-23
 
 ### Added
