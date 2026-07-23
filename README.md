@@ -4,6 +4,10 @@ Server management scripts for D-Solutions' RunCloud-managed WordPress/Laravel ho
 
 > **Credits & attribution:** The core fleet scripts were originally authored by [@khoipro](https://github.com/khoipro) & @copilot in [`codetot-web/runcloud-bash-scripts`](https://github.com/codetot-web/runcloud-bash-scripts) and are used here with attribution. This repository is maintained and extended by **D-Solutions**. The malware-hunting tooling — `wp-malware-scan.sh`, `wp-malware-quarantine.sh`, `wp-decode-payload.php` — is original D-Solutions work.
 
+## Documentation
+- **[Runbook vận hành fleet](docs/fleet-operations-runbook.md)** — nhịp vận hành định kỳ, cron chuẩn, và quy trình xử lý: malware, site lỗi 500, đĩa đầy, cửa sổ bảo trì cập nhật, bàn giao site, server tải cao.
+- Dashboard chạy các script này: [fleet-script-runner](https://github.com/D-SOLUTIONS-TECHNOLOGY-MEDIA-CO-LTD/fleet-script-runner) (có docs cài đặt/sử dụng riêng).
+
 ## Features
 - [x] Install ioncube for all PHP versions
 - [x] Migrate WordPress and Laravel apps between RunCloud servers
