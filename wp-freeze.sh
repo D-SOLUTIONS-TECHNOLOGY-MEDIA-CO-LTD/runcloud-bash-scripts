@@ -38,8 +38,6 @@
 #   2. Run updates (plugins, core, etc.)
 #   3. wp-freeze.sh --site=APPNAME --action=freeze
 #
-# Relates to: codetot-workspace/runcloud#1, #2
-#
 
 set -euo pipefail
 

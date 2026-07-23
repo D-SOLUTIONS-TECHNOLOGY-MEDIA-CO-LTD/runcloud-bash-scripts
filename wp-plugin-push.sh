@@ -7,11 +7,11 @@
 # verifies each site returns HTTP 200.
 #
 # Usage:
-#   ./wp-plugin-push.sh --plugin=gravityforms --server=sg3.codetot.org
+#   ./wp-plugin-push.sh --plugin=gravityforms --server=sg3
 #   ./wp-plugin-push.sh --plugin=gravityforms --servers=sg3,sg5,vn01
 #   ./wp-plugin-push.sh --plugin=gravityforms --all-servers
-#   ./wp-plugin-push.sh --plugin=gravityforms --server=sg3.codetot.org --dry-run
-#   ./wp-plugin-push.sh --plugin=gravityforms --server=sg3.codetot.org --site=myapp
+#   ./wp-plugin-push.sh --plugin=gravityforms --server=sg3 --dry-run
+#   ./wp-plugin-push.sh --plugin=gravityforms --server=sg3 --site=myapp
 #
 # Options:
 #   --plugin=SLUG            Required. Plugin slug (folder/zip name inside --plugins-dir)
@@ -19,7 +19,7 @@
 #                            Default: ~/Documents/Plugins/gravityforms_plugins
 #   --server=HOSTNAME        Single server hostname (short name like "sg3" or full FQDN)
 #   --servers=LIST           Comma-separated short server names (e.g. sg3,sg5,vn01)
-#   --all-servers            Push to all known servers (see SERVERS list below)
+#   --all-servers            Push to every server in the fleet registry (~/.rc/rc.db)
 #   --site=APPNAME           Limit to a single WP app on the server (default: all apps)
 #   --port=N                 SSH port override (default: auto-detected per server)
 #   --skip-verify            Skip HTTP 200 verification after install
@@ -30,32 +30,32 @@
 
 set -euo pipefail
 
-# --- Built-in server list (from SERVERS.md) ---
-# Format: "hostname:port" — stored as plain strings to avoid bash associative array issues
-SERVER_LIST=(
-    "sg2.codetot.org:22"
-    "sg3.codetot.org:22"
-    "sg5.codetot.org:22"
-    "sg6.codetot.org:22"
-    "sg7.codetot.org:22"
-    "sg8.codetot.org:22"
-    "sg9.codetot.org:2018"
-    "jp1.codetot.org:22"
-    "vn01.codetot.org:2018"
-    "vn02.codetot.org:2018"
-    "vn03.codetot.org:2018"
-    "vn04.codetot.org:2018"
-    "vn05.codetot.org:22"
-    "vn06.codetot.org:22"
-    "vn07.codetot.org:22"
-    "vn08.codetot.org:2018"
-    "vn09.codetot.org:22"
-    "vn10.codetot.org:2018"
-    "vn11.codetot.org:22"
-    "vn16.codetot.org:2018"
-)
+# --- Fleet registry (source of truth: ~/.rc/rc.db) ---
+# Hostnames + SSH ports are read from the local SQLite registry rather than
+# hardcoded, so this script always tracks the real fleet. Override with RC_DB=...
+RC_DB="${RC_DB:-$HOME/.rc/rc.db}"
+SERVER_LIST=()   # populated by load_servers(): "hostname:port" entries
 
-# Look up the SSH port for a hostname from SERVER_LIST
+load_servers() {
+    if ! command -v sqlite3 >/dev/null 2>&1; then
+        error "sqlite3 not found — required to read the fleet registry ($RC_DB)"
+        exit 1
+    fi
+    if [ ! -f "$RC_DB" ]; then
+        error "Fleet registry not found: $RC_DB"
+        exit 1
+    fi
+    while IFS='|' read -r host port; do
+        [ -n "$host" ] || continue
+        SERVER_LIST+=("${host}:${port:-22}")
+    done < <(sqlite3 "$RC_DB" "SELECT hostname, ssh_port FROM servers ORDER BY hostname;")
+    if [ ${#SERVER_LIST[@]} -eq 0 ]; then
+        error "No servers found in $RC_DB"
+        exit 1
+    fi
+}
+
+# Look up the SSH port for a hostname from the loaded registry
 server_port() {
     local host="$1"
     for entry in "${SERVER_LIST[@]}"; do
@@ -67,12 +67,23 @@ server_port() {
     echo "${PORT_OVERRIDE:-22}"  # fallback to explicit override or 22
 }
 
-# Derive ALL_SERVERS from SERVER_LIST (just the hostnames)
-ALL_SERVERS=()
-for _entry in "${SERVER_LIST[@]}"; do
-    ALL_SERVERS+=("${_entry%%:*}")
-done
-unset _entry
+# Resolve a user token (short name or FQDN) against the registry. A short name
+# with no dot matches the first registry host whose name starts "<token>.".
+expand_server() {
+    local input="${1// /}"
+    for entry in "${SERVER_LIST[@]}"; do
+        [ "${entry%%:*}" = "$input" ] && { echo "$input"; return 0; }
+    done
+    if [[ "$input" != *.* ]]; then
+        for entry in "${SERVER_LIST[@]}"; do
+            case "${entry%%:*}" in
+                "$input".*) echo "${entry%%:*}"; return 0 ;;
+            esac
+        done
+    fi
+    warn "Server '$input' not in $RC_DB — using as-is" >&2
+    echo "$input"
+}
 
 # --- Defaults ---
 PLUGIN=""
@@ -130,6 +141,12 @@ if [[ ! "$PLUGIN" =~ ^[a-zA-Z0-9_-]+$ ]]; then
     exit 1
 fi
 
+# Load the fleet registry, then derive the full hostname list.
+load_servers
+ALL_SERVERS=()
+for _entry in "${SERVER_LIST[@]}"; do ALL_SERVERS+=("${_entry%%:*}"); done
+unset _entry
+
 # --- Resolve target servers ---
 TARGET_SERVERS=()
 
@@ -138,12 +155,7 @@ if [ "$USE_ALL_SERVERS" = true ]; then
 elif [ -n "$SERVERS_INPUT" ]; then
     IFS=',' read -ra raw_list <<< "${SERVERS_INPUT%,}"
     for entry in "${raw_list[@]}"; do
-        entry="${entry// /}"
-        # Expand short names (e.g. "sg3" → "sg3.codetot.org")
-        if [[ "$entry" != *"."* ]]; then
-            entry="${entry}.codetot.org"
-        fi
-        TARGET_SERVERS+=("$entry")
+        TARGET_SERVERS+=("$(expand_server "$entry")")
     done
 else
     error "Specify --server=, --servers=, or --all-servers"
