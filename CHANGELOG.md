@@ -2,6 +2,20 @@
 
 All notable changes to `runcloud-bash-scripts` will be documented in this file.
 
+## [1.4.3] — 2026-07-23
+
+### Fixed
+
+- **wp-malware-scan.sh Family 3b**: tighten false-positive filter.
+  - Previously matched $OBF | $COOKIE (OR) — flagged ManageWP Worker mu-plugin,
+    Elementor Safe Mode, legit theme child functions.php, and any theme file that
+    reads $_COOKIE routinely. 22 false positives on galle rescan.
+  - Now requires BOTH $OBF (eval/base64_decode/hex2bin/…) AND $COOKIE in the
+    same file — attackers combine them, legit code rarely does.
+  - Skips mu-plugins/ entirely (0-worker.php trivially trips single-token match).
+  - Skips WP drop-ins advanced-cache.php, object-cache.php, db.php.
+
+
 ## [1.4.2] — 2026-07-23
 
 ### Fixed
