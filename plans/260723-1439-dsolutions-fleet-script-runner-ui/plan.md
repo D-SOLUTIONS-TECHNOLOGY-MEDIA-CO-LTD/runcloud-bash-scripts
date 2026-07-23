@@ -37,10 +37,10 @@ Adopt the mockup's React layout (4 tabs: servers w/ expandable per-site rows, al
 | 07 | [Inventory dashboard (pull)](phase-07-inventory-monitoring-dashboard.md) | **Done (MVP)** |
 | 08 | [Webhook receiver + HMAC + history store](phase-08-webhook-receiver-and-history.md) | **Done** |
 | 09 | [UI: adopt mockup layout (drill-down, sites, setup)](phase-09-ui-adopt-mockup-layout.md) | **Done** |
-| 02 | [Script catalog manifest + run form](phase-02-script-catalog-and-run-form.md) | Not started |
-| 03 | [SSH exec + live output streaming (SSE)](phase-03-ssh-exec-and-live-streaming.md) | Not started |
+| 02 | [Script catalog manifest + run form](phase-02-script-catalog-and-run-form.md) | **Done** |
+| 03 | [SSH exec + live output streaming (SSE)](phase-03-ssh-exec-and-live-streaming.md) | **Done** |
 | 04 | [Multi-server parallel runs + logs](phase-04-multi-server-runs-and-logs.md) | Not started |
-| 05 | [Safety UX + run history](phase-05-safety-ux-and-history.md) | Not started |
+| 05 | [Safety UX + run history](phase-05-safety-ux-and-history.md) | Partial (safety gate + dry-run done; run-history UI pending) |
 | 10 | [Alerting (Zalo OA on thresholds)](phase-10-alerting.md) | Optional |
 | 06 | [Auth + host behind Cloudflare Access / Tailscale](phase-06-deferred-auth-and-deploy.md) | In scope (multi-user) |
 
