@@ -27,7 +27,7 @@ QUICK_MODE=false
 for arg in "$@"; do
     case "$arg" in
         --print) PRINT_ONLY=true ;;
-        --quick) QUICK_MODE=true; PRINT_ONLY=true ;;  # quick = system metrics only, no app scan
+        --quick) QUICK_MODE=true ;;  # quick = system metrics only, no per-app WP scan (fast: <2s)
     esac
 done
 
