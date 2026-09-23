@@ -2,6 +2,17 @@
 
 All notable changes to `runcloud-bash-scripts` will be documented in this file.
 
+## [1.5.1] — 2026-09-23
+
+### Fixed
+
+- **server-metrics.sh**: SSH-port detection killed the whole script under
+  `set -o pipefail`. `sshd -T | awk '...{print $2; exit}'` closed the pipe early,
+  so `sshd -T` took SIGPIPE (exit 141) and `pipefail` + `set -e` aborted the run
+  *before* the metrics payload was printed/POSTed (0-byte output, no error).
+  Regression introduced with the 1.5.0 ssh_port feature. Fixed by reading the whole
+  stream: `awk '$1=="port"{p=$2} END{print p}'` (no early `exit`, pipe-safe).
+
 ## [1.5.0] — 2026-07-24
 
 ### Added

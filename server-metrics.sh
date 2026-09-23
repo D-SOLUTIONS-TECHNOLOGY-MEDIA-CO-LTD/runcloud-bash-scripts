@@ -211,7 +211,7 @@ if [ "$QUICK_MODE" = false ] && [ -d /home ]; then
 fi
 
 # ── Detect the SSH port so the dashboard can reach this host without a registry ─
-SSH_PORT=$(sshd -T 2>/dev/null | awk '$1=="port"{print $2; exit}')
+SSH_PORT=$(sshd -T 2>/dev/null | awk '$1=="port"{p=$2} END{print p}')
 [ -z "$SSH_PORT" ] && SSH_PORT=$(grep -RhiE '^[[:space:]]*Port[[:space:]]+[0-9]+' \
     /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null | awk '{print $2}' | tail -1)
 [ -z "$SSH_PORT" ] && SSH_PORT=22
