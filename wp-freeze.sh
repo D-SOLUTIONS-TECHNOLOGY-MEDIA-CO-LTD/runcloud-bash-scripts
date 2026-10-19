@@ -162,28 +162,73 @@ inject_wpconfig_constants() {
     if [ "$DRY_RUN" = true ]; then
         dry "Would inject CODE FREEZE constants into $wpconfig"
     else
-        # Use Python3 for reliable multiline insertion (avoids GNU sed quirks).
-        # Single-quoted bash string prevents variable expansion; \x27 = apostrophe,
-        # \u2014 = em dash — both interpreted by Python 3 string literals.
-        python3 -c '
-import sys
+        # Insert the block right after the opening <?php tag.
+        # Do NOT anchor on "That's all, stop editing": on many sites that marker
+        # lives inside a /* ... */ comment, so the injected defines were silently
+        # commented out (constants never defined, freeze ineffective).
+        # Guarded defines (defined() || define()) skip silently if a constant was
+        # set earlier; a later unguarded define() in the site's own config will
+        # emit an "already defined" warning (freeze value wins) — acceptable.
+        # Single-quoted bash string prevents variable expansion; \u2014 = em dash.
+        local backup="${wpconfig}.pre-freeze.$$"
+        cp -p "$wpconfig" "$backup"
+        chmod u+w "$wpconfig" 2>/dev/null || true
+        if ! python3 -c '
+import re, sys
 path = sys.argv[1]
 content = open(path).read()
 block = (
     "\n// === CODE FREEZE \u2014 managed by wp-freeze.sh ===\n"
-    "define(\"DISALLOW_FILE_EDIT\", true);\n"
-    "define(\"DISALLOW_FILE_MODS\", true);\n"
-    "define(\"AUTOMATIC_UPDATER_DISABLED\", true);\n"
+    "defined(\"DISALLOW_FILE_EDIT\") || define(\"DISALLOW_FILE_EDIT\", true);\n"
+    "defined(\"DISALLOW_FILE_MODS\") || define(\"DISALLOW_FILE_MODS\", true);\n"
+    "defined(\"AUTOMATIC_UPDATER_DISABLED\") || define(\"AUTOMATIC_UPDATER_DISABLED\", true);\n"
     "// === END CODE FREEZE ===\n"
 )
-marker = "That\x27s all, stop editing"
-if marker in content:
-    content = content.replace(marker, block + marker, 1)
-else:
-    content = content.rstrip() + block
+m = re.match(r"\A\ufeff?\s*<\?php[^\n]*\n", content)
+if not m:
+    sys.exit("wp-config.php does not start with <?php")
+content = content[:m.end()] + block + content[m.end():]
 open(path, "w").write(content)
-' "$wpconfig"
+' "$wpconfig"; then
+            mv -f "$backup" "$wpconfig"
+            error "Could not inject constants into $wpconfig — restored original"
+            return 1
+        fi
+
+        # Verify: syntax OK and the constant is really defined at runtime.
+        local php_bin
+        php_bin=$(command -v php || true)
+        if [ -n "$php_bin" ] && ! "$php_bin" -l "$wpconfig" &>/dev/null; then
+            mv -f "$backup" "$wpconfig"
+            error "wp-config.php syntax error after injection — restored original"
+            return 1
+        fi
+        rm -f "$backup"
         success "Injected CODE FREEZE constants into wp-config.php"
+    fi
+}
+
+verify_wpconfig_constants() {
+    # Confirms WordPress actually sees DISALLOW_FILE_MODS=true (catches blocks
+    # that ended up inside a comment or after wp-settings.php).
+    local site_path="$1"
+    local owner wp_cli result
+    owner=$(stat -c '%U' "$site_path" 2>/dev/null || stat -f '%Su' "$site_path" 2>/dev/null)
+    for wp_cli in "$(command -v wp 2>/dev/null)" /usr/local/bin/wp /usr/bin/wp /RunCloud/Packages/RunCloudAgent/bin/wp; do
+        [ -n "$wp_cli" ] && [ -x "$wp_cli" ] && break
+        wp_cli=""
+    done
+    if [ -z "$wp_cli" ]; then
+        warn "wp-cli not found — cannot verify DISALLOW_FILE_MODS at runtime"
+        return 0
+    fi
+    result=$(sudo -u "$owner" "$wp_cli" --path="$site_path" --skip-plugins --skip-themes \
+        eval 'echo (defined("DISALLOW_FILE_MODS") && DISALLOW_FILE_MODS) ? "ON" : "OFF";' 2>/dev/null | tail -1)
+    if [ "$result" = "ON" ]; then
+        success "Verified: DISALLOW_FILE_MODS is active at runtime"
+    else
+        error "DISALLOW_FILE_MODS NOT active at runtime (got '${result:-no output}') — check wp-config.php"
+        return 1
     fi
 }
 
@@ -293,7 +338,20 @@ deploy_muplugin() {
 
     mkdir -p "$muplugins_dir"
     echo "$MUPLUGIN_CONTENT" > "$plugin_file"
-    success "Deployed code-freeze.php mu-plugin"
+
+    # The file is written by root. RunCloud ACL 'group:users-rc:---' then blocks
+    # the web user from reading it, so PHP fails the include ("Permission denied")
+    # and the capability lock never loads. Hand it to the site owner.
+    local owner
+    owner=$(stat -c '%U' "$site_path" 2>/dev/null || stat -f '%Su' "$site_path" 2>/dev/null)
+    chown "$owner:$owner" "$plugin_file"
+    chmod 644 "$plugin_file"
+
+    if sudo -u "$owner" test -r "$plugin_file"; then
+        success "Deployed code-freeze.php mu-plugin (readable by $owner)"
+    else
+        error "code-freeze.php NOT readable by $owner — capability lock inactive"
+    fi
 }
 
 remove_muplugin() {
@@ -385,8 +443,8 @@ do_freeze() {
     # 1. Deploy mu-plugin first (while files are still writable)
     deploy_muplugin "$site_path"
 
-    # 2. Inject wp-config.php constants
-    inject_wpconfig_constants "$site_path/wp-config.php"
+    # 2. Inject wp-config.php constants (abort freeze if injection fails)
+    inject_wpconfig_constants "$site_path/wp-config.php" || return 1
 
     # 3. Inject uploads/.htaccess PHP block
     inject_uploads_htaccess "$site_path/wp-content/uploads"
@@ -396,6 +454,14 @@ do_freeze() {
 
     # 5. Ensure mu-plugins remains readable by web user (RunCloud ACL workaround)
     ensure_muplugins_accessible "$site_path"
+
+    # 6. Verify the constants are really live (not commented out)
+    if [ "$DRY_RUN" != true ]; then
+        verify_wpconfig_constants "$site_path" || {
+            error "$app_name: freeze INCOMPLETE — constants not active"
+            return 1
+        }
+    fi
 
     success "$app_name: FROZEN"
 }
@@ -449,6 +515,21 @@ do_status() {
         local wp_perm
         wp_perm=$(stat -c "%a" "$site_path/wp-config.php" 2>/dev/null || stat -f "%Lp" "$site_path/wp-config.php" 2>/dev/null)
         echo "             wp-config.php: $wp_perm"
+        # Runtime checks: catch freezes that look applied but do nothing
+        local owner mu="$site_path/wp-content/mu-plugins/code-freeze.php"
+        owner=$(stat -c '%U' "$site_path" 2>/dev/null || stat -f '%Su' "$site_path" 2>/dev/null)
+        if [ -f "$mu" ]; then
+            if sudo -u "$owner" test -r "$mu" 2>/dev/null; then
+                echo "             mu-plugin readable by $owner: yes"
+            else
+                echo -e "             mu-plugin readable by $owner: ${RED}NO (capability lock inactive)${NC}"
+            fi
+        fi
+        if verify_wpconfig_constants "$site_path" >/dev/null 2>&1; then
+            echo "             DISALLOW_FILE_MODS at runtime: ON"
+        else
+            echo -e "             DISALLOW_FILE_MODS at runtime: ${RED}OFF — re-run unfreeze + freeze${NC}"
+        fi
     else
         echo -e "  ${GREEN}[UNFROZEN]${NC} $app_name"
     fi
