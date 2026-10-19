@@ -2,6 +2,28 @@
 
 All notable changes to `runcloud-bash-scripts` will be documented in this file.
 
+## [1.5.2] — 2026-10-19
+
+### Fixed
+
+- **wp-freeze.sh**: freeze reported `FROZEN` but was largely ineffective on real
+  sites (found during frederiquevn incident response, verified on thietbi-ipos).
+  - `DISALLOW_FILE_MODS` / `DISALLOW_FILE_EDIT` were never defined: the block was
+    inserted before `That's all, stop editing`, which on many wp-config.php files
+    sits **inside a `/* ... */` comment** → defines commented out. Now inserted
+    right after `<?php`, guarded `defined() || define()`, with backup + `php -l`
+    rollback on failure.
+  - `code-freeze.php` mu-plugin was root-owned; RunCloud ACL `group:users-rc:---`
+    blocked the web user → PHP include "Permission denied", capability lock never
+    loaded. Now chowned to the site owner and read-checked.
+
+### Added
+
+- **wp-freeze.sh**: runtime verification (`wp eval` checks `DISALLOW_FILE_MODS`);
+  freeze exits non-zero if not active. `--action=status` now reports mu-plugin
+  readability and runtime `DISALLOW_FILE_MODS`, so previously frozen sites can be
+  audited. Sites frozen with ≤1.5.1 must be `unfreeze` + `freeze` again.
+
 ## [1.5.1] — 2026-09-23
 
 ### Fixed
